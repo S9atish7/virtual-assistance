@@ -197,9 +197,7 @@ Add some images or a short GIF showing: sign‑up → customize → talk to the 
 
 
 
-```md
-![Home](Frontend/src/assets/image1.png)
-![Customize](Frontend/src/assets/image4.png)
+
 ```
 
 ---
