@@ -20,6 +20,7 @@ function Home() {
   const isSpeakingRef = useRef(false);
   const synth = window.speechSynthesis;
 
+  // ----------------- Logout -----------------
   const handleLogOut = async () => {
     try {
       await axios.get(`${serverUrl}/api/auth/logout`, { withCredentials: true });
@@ -31,6 +32,7 @@ function Home() {
     }
   };
 
+  // ----------------- Recognition -----------------
   const startRecognition = () => {
     if (!isSpeakingRef.current && !isRecognizingRef.current) {
       try {
@@ -44,25 +46,27 @@ function Home() {
     }
   };
 
+  // ----------------- Text-to-speech -----------------
   const speak = (text) => {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'hi-IN';
+    utterance.lang = "hi-IN";
 
     const voices = synth.getVoices();
-    const hindiVoice = voices.find((v) => v.lang === 'hi-IN');
+    const hindiVoice = voices.find((v) => v.lang === "hi-IN");
     if (hindiVoice) utterance.voice = hindiVoice;
 
     isSpeakingRef.current = true;
 
     utterance.onend = () => {
       isSpeakingRef.current = false;
-      setTimeout(() => startRecognition(), 600); // ⭐ restart only after speaking ends
+      setTimeout(() => startRecognition(), 600); // ⭐ only restart after speech ends
     };
 
-    synth.cancel(); // stop ongoing speech
+    synth.cancel();
     synth.speak(utterance);
   };
 
+  // ----------------- Handle Gemini command -----------------
   const handleCommand = (data) => {
     const { type, userInput, response } = data;
 
@@ -71,35 +75,36 @@ function Home() {
 
     const query = encodeURIComponent(userInput);
     switch (type) {
-      case 'google-search':
-        window.open(`https://www.google.com/search?q=${query}`, '_blank');
+      case "google-search":
+        window.open(`https://www.google.com/search?q=${query}`, "_blank");
         break;
-      case 'calculator-open':
-        window.open(`https://www.google.com/search?q=calculator`, '_blank');
+      case "calculator-open":
+        window.open("https://www.google.com/search?q=calculator", "_blank");
         break;
-      case 'instagram-open':
-        window.open(`https://www.instagram.com/`, '_blank');
+      case "instagram-open":
+        window.open("https://www.instagram.com/", "_blank");
         break;
-      case 'facebook-open':
-        window.open(`https://www.facebook.com/`, '_blank');
+      case "facebook-open":
+        window.open("https://www.facebook.com/", "_blank");
         break;
-      case 'weather-show':
-        window.open(`https://www.google.com/search?q=weather`, '_blank');
+      case "weather-show":
+        window.open("https://www.google.com/search?q=weather", "_blank");
         break;
-      case 'youtube-search':
-      case 'youtube-play':
-        window.open(`https://www.youtube.com/results?search_query=${query}`, '_blank');
+      case "youtube-search":
+      case "youtube-play":
+        window.open(`https://www.youtube.com/results?search_query=${query}`, "_blank");
         break;
       default:
         break;
     }
   };
 
+  // ----------------- Setup recognition in useEffect -----------------
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.lang = 'en-US';
+    recognition.lang = "en-US";
     recognition.interimResults = false;
     recognitionRef.current = recognition;
 
@@ -109,7 +114,6 @@ function Home() {
       if (isMounted && !isSpeakingRef.current && !isRecognizingRef.current) {
         try {
           recognition.start();
-          console.log("Recognition requested to start");
         } catch (e) {
           if (e.name !== "InvalidStateError") console.error(e);
         }
@@ -124,16 +128,9 @@ function Home() {
     recognition.onend = () => {
       isRecognizingRef.current = false;
       setListening(false);
-      // ⭐ Only restart if you want continuous listening
+      // ⭐ restart only if you want continuous listening
       if (isMounted && !isSpeakingRef.current) {
-        setTimeout(() => {
-          try {
-            recognition.start();
-            console.log("Recognition restarted");
-          } catch (e) {
-            if (e.name !== "InvalidStateError") console.error(e);
-          }
-        }, 1000);
+        setTimeout(() => recognition.start(), 1000);
       }
     };
 
@@ -142,51 +139,44 @@ function Home() {
       isRecognizingRef.current = false;
       setListening(false);
 
-      // ⭐ handle errors separately
+      // ⭐ handle errors individually
       if (!isMounted || isSpeakingRef.current) return;
 
       if (event.error === "network") {
-        console.error("Speech API network issue – not restarting automatically");
+        console.error("Speech API network issue – don’t auto-restart");
         return;
       }
       if (event.error === "no-speech") {
-        console.log("No speech detected – waiting for user");
+        console.log("No speech detected");
         return;
       }
 
-      // restart only for other recoverable errors
-      setTimeout(() => {
-        try {
-          recognition.start();
-          console.log("Recognition restarted after error");
-        } catch (e) {
-          if (e.name !== "InvalidStateError") console.error(e);
-        }
-      }, 1000);
+      setTimeout(() => recognition.start(), 1000);
     };
 
     recognition.onresult = async (e) => {
       const transcript = e.results[e.results.length - 1][0].transcript.trim();
-      // ⭐ guard against null userData
       if (userData && transcript.toLowerCase().includes(userData.assistantName.toLowerCase())) {
         setUserText(transcript);
         setAiText("");
         recognition.stop();
+
+        // ⭐ check getGeminiResponse payload if you get 400 error
         const data = await getGeminiResponse(transcript);
         handleCommand(data);
         setUserText("");
       }
     };
 
+    // ----------------- Greeting -----------------
     const initGreeting = () => {
       if (!userData) return;
       const greeting = new SpeechSynthesisUtterance(`Hello ${userData.name}, what can I help you with?`);
-      greeting.lang = 'hi-IN';
+      greeting.lang = "hi-IN";
       greeting.onend = () => setTimeout(() => startRecognition(), 500);
       synth.speak(greeting);
     };
 
-    // wait for voices
     if (synth.getVoices().length === 0) {
       synth.onvoiceschanged = initGreeting;
     } else {
@@ -197,12 +187,13 @@ function Home() {
       isMounted = false;
       clearTimeout(startTimeout);
       recognition.stop();
-      synth.cancel(); // ⭐ cancel speech on unmount
+      synth.cancel();
       setListening(false);
       isRecognizingRef.current = false;
     };
-  }, [userData]); // ⭐ add dependency so greeting updates if userData changes
+  }, [userData]);
 
+  // ----------------- UI -----------------
   return (
     <div className="w-full h-[100vh] bg-gradient-to-t from-[black] to-[#02023d] flex justify-center items-center flex-col gap-[15px] overflow-hidden">
       <CgMenuRight className="lg:hidden text-white absolute top-[20px] right-[20px] w-[25px] h-[25px]" onClick={() => setHam(true)} />
